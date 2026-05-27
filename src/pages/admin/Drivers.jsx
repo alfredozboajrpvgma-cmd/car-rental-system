@@ -387,7 +387,6 @@ const Drivers = () => {
       id: staffType === STAFF_TYPES.DRIVER ? `DRV-${Date.now().toString().slice(-4)}` : '',
       location: activeHubNames[0] || '',
       staffType,
-      recordType: undefined,
     });
     setIsEditingDriver(false);
     setFormError('');
@@ -412,7 +411,6 @@ const Drivers = () => {
         ...EMPTY_DRIVER,
         ...driver,
         staffType: STAFF_TYPES.DRIVER,
-        recordType: undefined,
         licenseNo: normalizeLicenseNo(driver.licenseNo),
       });
     }
@@ -572,6 +570,9 @@ const Drivers = () => {
       completedTrips: Number(driverForm.completedTrips) || 0,
       rating: Number(driverForm.rating) || 0,
     };
+    
+    delete payload.recordType;
+    delete payload.rowKey;
 
     setSaveDriverLoading(true);
     setFormError('');
