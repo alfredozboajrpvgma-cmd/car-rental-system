@@ -1,0 +1,72 @@
+/**
+ * Shared Drive PH portal palette — customer & chauffeur portals.
+ * Primary actions use brand blue; green is for success / active-trip states.
+ */
+export const PORTAL = {
+  primary: 'var(--accent-color)',
+  primaryHex: '#0033FF',
+  primaryBg: '#F0F4FF',
+  primaryBgAlt: '#E3F2FD',
+  success: '#2E7D32',
+  successBg: '#E8F5E9',
+  warning: '#F57F17',
+  warningBg: '#FFF8E1',
+  text: '#111111',
+  textMuted: '#666666',
+  textSubtle: '#888888',
+  border: 'var(--border-color)',
+  borderHex: '#E0E0E0',
+  surface: '#FFFFFF',
+  pageBg: '#F5F5F7',
+};
+
+export const portalBtn = {
+  primary: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '0.5rem',
+    padding: '0.65rem 1.1rem',
+    backgroundColor: PORTAL.primaryHex,
+    color: '#FFF',
+    border: `2px solid ${PORTAL.primaryHex}`,
+    borderRadius: '8px',
+    fontWeight: 600,
+    fontSize: '0.9rem',
+    cursor: 'pointer',
+    textDecoration: 'none',
+  },
+  primaryLarge: {
+    padding: '0.75rem 1rem',
+    fontWeight: 700,
+    fontSize: '0.95rem',
+  },
+  outline: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '0.45rem',
+    padding: '0.65rem 1rem',
+    backgroundColor: PORTAL.surface,
+    color: PORTAL.primaryHex,
+    border: `2px solid ${PORTAL.primaryHex}`,
+    borderRadius: '8px',
+    fontWeight: 600,
+    fontSize: '0.9rem',
+    textDecoration: 'none',
+  },
+  secondary: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '0.5rem',
+    padding: '0.65rem 1rem',
+    backgroundColor: 'transparent',
+    color: '#374151',
+    border: `2px solid #D1D5DB`,
+    borderRadius: '8px',
+    fontWeight: 600,
+    fontSize: '0.9rem',
+    cursor: 'pointer',
+  },
+};

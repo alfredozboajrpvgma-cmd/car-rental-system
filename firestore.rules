@@ -1,0 +1,224 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userProfilePath() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
+    }
+
+    function hasUserProfile() {
+      return isSignedIn() && exists(userProfilePath());
+    }
+
+    function userDoc() {
+      return get(userProfilePath());
+    }
+
+    function isAdmin() {
+      return hasUserProfile() && userDoc().data.role == 'admin';
+    }
+
+    function isStaffOrAdmin() {
+      return hasUserProfile() && userDoc().data.role in ['admin', 'staff'];
+    }
+
+    function canProvisionOtherUser() {
+      return isAdmin() && request.auth.uid != userId;
+    }
+
+    function isDriverPortalUser() {
+      return hasUserProfile() && (
+        userDoc().data.role == 'driver'
+        || (
+          userDoc().data.role == 'staff'
+          && userDoc().data.staffType == 'driver'
+          && userDoc().data.driverId is string
+          && userDoc().data.driverId.size() > 0
+        )
+      );
+    }
+
+    function ownDriverId() {
+      return userDoc().data.driverId;
+    }
+
+    function isOwnDriverRecord(driverId) {
+      return isDriverPortalUser() && ownDriverId() == driverId;
+    }
+
+    function driverSelfUpdateKeysOnly() {
+      return !request.resource.data.diff(resource.data).affectedKeys()
+        .hasAny(['verified', 'licenseNo', 'email', 'name', 'rating', 'avatar', 'location']);
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isStaffRole(role) {
+      return role in ['admin', 'staff'];
+    }
+
+    function targetUserIsStaff(userId) {
+      return isStaffRole(get(/databases/$(database)/documents/users/$(userId)).data.role);
+    }
+
+    function customerCannotSelfVerify() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['verified'])
+        || request.resource.data.verified == false;
+    }
+
+    function validStaffCreate() {
+      return request.resource.data.role == 'staff'
+        && request.resource.data.staffType in ['driver', 'support', 'maintenance']
+        && (
+          request.resource.data.staffType != 'driver'
+          || (
+            request.resource.data.driverId is string
+            && request.resource.data.driverId.size() > 0
+          )
+        );
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn() && (
+        request.auth.uid == userId
+        || isStaffOrAdmin()
+        || resource.data.role in ['admin', 'staff']
+      );
+      allow create: if isSignedIn() && (
+        (request.auth.uid == userId && request.resource.data.role == 'customer')
+        || (request.auth.uid == userId && validStaffCreate())
+        || (canProvisionOtherUser() && validStaffCreate())
+        || (canProvisionOtherUser()
+          && request.resource.data.role == 'driver'
+          && request.resource.data.driverId is string
+          && request.resource.data.driverId.size() > 0)
+      );
+      allow update: if isSignedIn() && (
+        (request.auth.uid == userId
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'staffType'])
+          && customerCannotSelfVerify())
+        || isAdmin()
+      );
+      allow delete: if isAdmin();
+    }
+
+    match /vehicles/{vehicleId} {
+      allow read: if true;
+      allow create, delete: if isStaffOrAdmin();
+      allow update: if isStaffOrAdmin()
+        || (isDriverPortalUser()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+          && request.resource.data.status == 'Available');
+    }
+
+    match /bookings/{bookingId} {
+      allow read: if isStaffOrAdmin()
+        || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.status == 'Pending';
+      allow update: if isStaffOrAdmin()
+        || (isSignedIn()
+          && resource.data.userId == request.auth.uid
+          && request.resource.data.status == 'Cancelled'
+          && resource.data.status in ['Pending', 'Approved'])
+        || (isSignedIn()
+          && resource.data.userId == request.auth.uid
+          && resource.data.status == 'Approved'
+          && request.resource.data.status == 'Approved'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'startDate', 'endDate', 'days', 'total',
+            'pickupWindowStart', 'pickupWindowEnd', 'gracePeriodEndsAt', 'updatedAt'
+          ]));
+      allow delete: if isAdmin();
+    }
+
+    match /locations/{locationId} {
+      allow read: if true;
+      allow write: if isStaffOrAdmin();
+    }
+
+    match /drivers/{driverId} {
+      allow read: if isStaffOrAdmin() || isOwnDriverRecord(driverId);
+      allow create, delete: if isStaffOrAdmin();
+      allow update: if isStaffOrAdmin()
+        || (isOwnDriverRecord(driverId) && driverSelfUpdateKeysOnly());
+    }
+
+    match /driverAuth/{driverId} {
+      allow create: if isSignedIn()
+        && request.resource.data.uid == request.auth.uid;
+      allow read, update, delete: if isAdmin();
+    }
+
+    match /staffAuth/{staffKey} {
+      allow create: if isSignedIn()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.staffType in ['support', 'maintenance'];
+      allow read, update, delete: if isAdmin();
+    }
+
+    match /incidents/{incidentId} {
+      allow read: if isStaffOrAdmin();
+      allow write: if isStaffOrAdmin();
+    }
+
+    match /maintenance/{taskId} {
+      allow read: if isStaffOrAdmin();
+      allow write: if isStaffOrAdmin();
+    }
+
+    match /settings/{docId} {
+      allow read: if isStaffOrAdmin()
+        || (isSignedIn() && docId == 'app');
+      allow write: if isAdmin();
+    }
+
+    match /roadsideAssistance/{requestId} {
+      allow read: if isStaffOrAdmin()
+        || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.status == 'Open'
+        && request.resource.data.bookingId is string;
+      allow update: if isStaffOrAdmin()
+        || (isSignedIn()
+          && resource.data.userId == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['lastMessageAt', 'lastMessagePreview']));
+      allow delete: if isAdmin();
+
+      match /messages/{messageId} {
+        function parentOwner() {
+          return get(/databases/$(database)/documents/roadsideAssistance/$(requestId)).data.userId;
+        }
+
+        allow read: if isStaffOrAdmin()
+          || (isSignedIn() && parentOwner() == request.auth.uid);
+
+        allow create: if (isStaffOrAdmin()
+            && request.resource.data.senderId == request.auth.uid
+            && request.resource.data.senderRole == 'support')
+          || (isSignedIn()
+            && parentOwner() == request.auth.uid
+            && request.resource.data.senderId == request.auth.uid
+            && request.resource.data.senderRole == 'customer');
+      }
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && (
+        isStaffOrAdmin()
+        || (request.resource.data.userId == request.auth.uid
+          && !targetUserIsStaff(request.resource.data.userId))
+      );
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+  }
+}
